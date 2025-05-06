@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { useUser } from "@/contexts/user-context"
 import { toast } from "@/hooks/use-toast"
 
+
 export default function LoginPage() {
   const router = useRouter()
   const { login, user } = useUser()
@@ -132,11 +133,11 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 p-4">
       <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">欢迎回来</CardTitle>
+        <CardHeader className="space-y-1 text-left">
+          <CardTitle className="text-3xl font-bold justify-self">VCHAT LOGIN</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex justify-center space-x-2">
+          <div className="flex justify-left space-x-2">
             {Array(4)
               .fill(0)
               .map((_, i) => (
@@ -156,7 +157,7 @@ export default function LoginPage() {
               ))}
           </div>
 
-          <div className="flex justify-center gap-2 flex-wrap">
+          <div className="flex justify-left gap-2 flex-wrap">
             {Array(6)
               .fill(0)
               .map((_, i) => (

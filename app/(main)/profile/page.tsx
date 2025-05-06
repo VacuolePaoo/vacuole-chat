@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import Script from "next/script"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -347,7 +348,7 @@ export default function ProfilePage() {
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3 mb-8">
           <TabsTrigger value="profile">个人资料</TabsTrigger>
-          <TabsTrigger value="account">账户设置</TabsTrigger>
+          <TabsTrigger value="account">账号信息</TabsTrigger>
           <TabsTrigger value="security">安全设置</TabsTrigger>
         </TabsList>
 
@@ -428,19 +429,45 @@ export default function ProfilePage() {
         <TabsContent value="account">
           <div className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4">账户信息</h3>
+              {/* <h3 className="text-lg font-medium mb-4"></h3> */}
 
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>账户ID</Label>
-                  <Card className="overflow-hidden">
+                  <Card className="overflow-hidden w-fit">
                     <CardContent className="p-0">
                       <div className="flex items-center">
-                        <div className="p-4 bg-primary/5 font-mono text-xl font-bold tracking-wider">{displayId}</div>
-                        <Button variant="ghost" size="sm" className="ml-auto mr-2" onClick={copyToClipboard}>
-                          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                          <span className="ml-2">{copied ? "已复制" : "复制"}</span>
-                        </Button>
+                        <style jsx>{`
+                          @font-face {
+                            font-family: 'CustomFont';
+                            font-display: swap;
+                          }
+                          .custom-font {
+                            font-family: 'CustomFont', monospace;
+                          }
+                        `}</style>
+                        <Script
+                          src="https://fontsapi.zeoseven.com/358/main/result.css"
+                          strategy="lazyOnload"
+                        />
+                        <div className="flex items-center bg-primary/5 px-3 py-2">
+                          {displayId.split('').map((digit, index) => (
+                            <div
+                              key={index}
+                              className="w-8 h-10 flex items-center justify-center text-lg font-bold custom-font bg-background/50 rounded-md mx-0.5 border border-primary/10"
+                            >
+                              {digit}
+                            </div>
+                          ))}
+                          <div
+                            role="button"
+                            className="flex-1 flex items-center justify-center px-6 py-2 hover:bg-muted/50 transition-colors cursor-pointer w-40"
+                            onClick={copyToClipboard}
+                          >
+                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            <span className="ml-2">{copied ? "已复制" : "复制"}</span>
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
