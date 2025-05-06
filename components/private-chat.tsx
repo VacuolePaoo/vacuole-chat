@@ -688,7 +688,7 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
             </div>
 
             <div className="flex-1 min-h-0">
-              <ScrollArea className="h-[calc(100vh-180px)]">
+              <ScrollArea className="h-[calc(100vh-160px)]">
                 <div className="space-y-4 max-w-3xl mx-auto p-4">
                   {messages.length === 0 ? (
                     <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
@@ -780,7 +780,11 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
                   onClear={() => setImageUrl(null)}
                 />
 
-                <Popover>
+                <Popover onOpenChange={(open) => {
+                  if (open && emojiPacks.length > 0) {
+                    loadEmojiPackContent(emojiPacks[0].id)
+                  }
+                }}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="icon" className="h-10 w-10">
                       <Smile className="h-5 w-5" />
