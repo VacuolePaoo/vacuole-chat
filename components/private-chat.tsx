@@ -81,24 +81,36 @@ interface PrivateChatProps {
   initialFriendId?: string | null
 }
 
-// 使用AES加密
+import CryptoJS from "crypto-js"
+
+// 使用AES-256-CBC加密
 const encryptMessage = (message: string, key: string): string => {
   try {
-    // 使用安全的加密方法
-    // 这里使用简单的Base64编码作为示例，实际应用中应使用CryptoJS或Web Crypto API
-    // 为了避免Unicode字符问题，先将消息转换为UTF-8编码
-    const encoder = new TextEncoder()
-    const data = encoder.encode(message)
+    // 生成随机IV
+    const iv = CryptoJS.lib.WordArray.random(16)
+    
+    // 使用PBKDF2派生密钥
+    const salt = CryptoJS.lib.WordArray.random(16)
+    const derivedKey = CryptoJS.PBKDF2(key, salt, {
+      keySize: 256/32,
+      iterations: 1000
+    })
 
-    // 将二进制数据转换为Base64
-    const base64 = btoa(
-      Array.from(data)
-        .map((byte) => String.fromCharCode(byte))
-        .join(""),
-    )
+    // 使用AES-256-CBC加密
+    const encrypted = CryptoJS.AES.encrypt(message, derivedKey, {
+      iv: iv,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7
+    })
+
+    // 组合IV、Salt和密文
+    const combined = CryptoJS.lib.WordArray.create()
+      .concat(iv)
+      .concat(salt)
+      .concat(encrypted.ciphertext)
 
     // 添加前缀标记这是加密消息
-    return `[encrypted]${base64}`
+    return `[encrypted]${combined.toString(CryptoJS.enc.Base64)}`
   } catch (e) {
     console.error("加密失败:", e)
     throw e
@@ -112,19 +124,32 @@ const decryptMessage = (encryptedMessage: string, key: string): string => {
       return encryptedMessage
     }
 
-    const base64 = encryptedMessage.substring(11)
+    // 移除前缀并解码Base64
+    const combined = CryptoJS.enc.Base64.parse(encryptedMessage.substring(11))
 
-    // 解码Base64
-    const binaryString = atob(base64)
-    const bytes = new Uint8Array(binaryString.length)
+    // 提取IV、Salt和密文
+    const iv = CryptoJS.lib.WordArray.create(combined.words.slice(0, 4))
+    const salt = CryptoJS.lib.WordArray.create(combined.words.slice(4, 8))
+    const ciphertext = CryptoJS.lib.WordArray.create(combined.words.slice(8))
 
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i)
-    }
+    // 使用PBKDF2派生密钥
+    const derivedKey = CryptoJS.PBKDF2(key, salt, {
+      keySize: 256/32,
+      iterations: 1000
+    })
 
-    // 将二进制数据转换回字符串
-    const decoder = new TextDecoder()
-    return decoder.decode(bytes)
+    // 解密
+    const decrypted = CryptoJS.AES.decrypt(
+      { ciphertext: ciphertext },
+      derivedKey,
+      {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      }
+    )
+
+    return decrypted.toString(CryptoJS.enc.Utf8)
   } catch (e) {
     console.error("解密失败:", e)
     return "解密失败，可能是更换了密钥"
