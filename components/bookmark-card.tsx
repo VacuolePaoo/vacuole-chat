@@ -7,7 +7,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ExternalLink, User, Edit, Trash, Copy, Check } from "lucide-react"
+import { ExternalLink, User, Edit, Trash, Copy, Check, Clock } from "lucide-react"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -105,9 +105,9 @@ export function BookmarkCard({ bookmark, onDelete, onEdit }: BookmarkCardProps) 
   const getFaviconUrl = (url: string) => {
     try {
       const urlObj = new URL(url)
-      return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=64`
+      return `https://toolb.cn/favicon/${urlObj.hostname}`
     } catch (error) {
-      return `https://www.google.com/s2/favicons?domain=example.com&sz=64`
+      return `https://toolb.cn/favicon/example.com`
     }
   }
 
@@ -127,44 +127,47 @@ export function BookmarkCard({ bookmark, onDelete, onEdit }: BookmarkCardProps) 
     <>
       <ContextMenu onOpenChange={setIsContextMenuOpen}>
         <ContextMenuTrigger>
-          <Card className={`overflow-hidden hover:shadow-md transition-shadow ${isContextMenuOpen ? "z-50" : ""}`}>
+          <Card className={`group relative overflow-hidden hover:shadow-lg transition-all duration-200 ${isContextMenuOpen ? "z-50 ring-2 ring-primary" : ""}`}>
             <CardContent className="p-0">
               <a
                 href={bookmark.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block p-4 hover:bg-muted/50 transition-colors"
+                className="block p-3 hover:bg-muted/50 transition-colors"
                 onClick={(e) => {
                   if (isContextMenuOpen) {
                     e.preventDefault()
                   }
                 }}
               >
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg overflow-hidden bg-muted/50 flex items-center justify-center flex-shrink-0 ring-1 ring-border/50">
                     <img
                       src={getFaviconUrl(bookmark.url) || "/placeholder.svg"}
                       alt={bookmark.title}
-                      className="h-6 w-6 object-contain"
+                      className="h-6 w-6 object-contain group-hover:scale-110 transition-transform duration-200"
                       onError={(e) => {
                         ;(e.target as HTMLImageElement).src = "/placeholder.svg?height=24&width=24"
                       }}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium truncate mb-1">{bookmark.title}</h3>
-                    <p className="text-xs text-muted-foreground truncate">{bookmark.url}</p>
+                    <h3 className="font-medium text-base leading-tight tracking-tight truncate mb-1">{bookmark.title}</h3>
+                    <p className="text-xs text-muted-foreground/90 truncate font-mono">{bookmark.url}</p>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                 </div>
               </a>
             </CardContent>
-            <CardFooter className="p-3 pt-0 border-t flex items-center justify-between text-xs text-muted-foreground">
-              <div className="flex items-center">
-                <User className="h-3 w-3 mr-1" />
-                <span>{bookmark.creator_name}</span>
+            <CardFooter className="py-2 px-3 border-t flex items-center justify-between text-xs text-muted-foreground bg-gradient-to-b from-muted/5 to-muted/10">
+              <div className="flex items-center gap-1.5 bg-muted/20 px-2 py-0.5 rounded-full">
+                <User className="h-3 w-3" />
+                <span className="font-medium">{bookmark.creator_name}</span>
               </div>
-              <div>{formatTime(bookmark.created_at)}</div>
+              <div className="bg-muted/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                <span>{formatTime(bookmark.created_at)}</span>
+              </div>
             </CardFooter>
           </Card>
         </ContextMenuTrigger>
