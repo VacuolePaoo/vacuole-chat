@@ -1608,7 +1608,7 @@ export default function PrivateChat({ initialFriendId }: PrivateChatProps) {
             </div>
 
             <div className="flex-1 min-h-0">
-              <ScrollArea className="h-[calc(100vh-180px)]">
+              <ScrollArea className="h-[calc(100vh-170px)]">
                 <div className="space-y-4 max-w-3xl mx-auto p-4">
                   {messages.length === 0 ? (
                     <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
