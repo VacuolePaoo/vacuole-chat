@@ -6,13 +6,12 @@ import { useState, useRef, useEffect } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, AlertCircle, ExternalLink, Smile } from "lucide-react"
+import { Send, Smile, ExternalLink } from "lucide-react"
 import { createClientSupabaseClient } from "@/lib/supabase"
 import { useUser } from "@/contexts/user-context"
 import { ImageUpload } from "@/components/image-upload"
 import { toast } from "@/hooks/use-toast"
 import { SupabaseImage } from "@/components/supabase-image"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -46,7 +45,6 @@ export function ChatRoom() {
   const [newMessage, setNewMessage] = useState("")
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [showSecurityAlert, setShowSecurityAlert] = useState(true)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [emojiPacks, setEmojiPacks] = useState<EmojiPack[]>([])
   const [isLoadingEmojis, setIsLoadingEmojis] = useState(false)
@@ -55,19 +53,18 @@ export function ChatRoom() {
   const { user } = useUser()
   const supabase = createClientSupabaseClient()
 
-  // 检查是否已经显示过安全提示
+  // 添加一个新的useEffect来显示toast提示
   useEffect(() => {
     const hasSeenAlert = localStorage.getItem("chat-security-notice-seen")
-    if (hasSeenAlert === "true") {
-      setShowSecurityAlert(false)
+    if (hasSeenAlert !== "true") {
+      toast({
+        title: "安全提示",
+        description: "公共聊天室中的消息对所有用户可见。请勿在此分享个人敏感信息。",
+        duration: 6000,
+      })
+      localStorage.setItem("chat-security-notice-seen", "true")
     }
   }, [])
-
-  // 关闭安全提示
-  const handleCloseAlert = () => {
-    setShowSecurityAlert(false)
-    localStorage.setItem("chat-security-notice-seen", "true")
-  }
 
   // 加载表情包
   useEffect(() => {
@@ -306,25 +303,19 @@ export function ChatRoom() {
   }
 
   // 插入表情
-  const insertEmoji = (emojiUrl: string) => {
-    // 从HTML字符串中提取图片URL
-    const urlMatch = emojiUrl.match(/src='([^']+)'/)
-    if (!urlMatch || !urlMatch[1]) return
-
-    const imgUrl = urlMatch[1]
-
-    // 在光标位置插入表情图片URL
+  const insertEmoji = (emoji: { text: string; icon: string }) => {
+    // 在光标位置插入表情代码
     const cursorPosition = inputRef.current?.selectionStart || newMessage.length
     const textBeforeCursor = newMessage.substring(0, cursorPosition)
     const textAfterCursor = newMessage.substring(cursorPosition)
 
-    // 插入表情图片标记
-    setNewMessage(textBeforeCursor + `[emoji:${imgUrl}]` + textAfterCursor)
+    // 插入表情代码 [text]
+    setNewMessage(textBeforeCursor + `[${emoji.text}]` + textAfterCursor)
 
     // 保持输入框焦点
     setTimeout(() => {
       if (inputRef.current) {
-        const newCursorPosition = cursorPosition + `[emoji:${imgUrl}]`.length
+        const newCursorPosition = cursorPosition + `[${emoji.text}]`.length
         inputRef.current.focus()
         inputRef.current.selectionStart = newCursorPosition
         inputRef.current.selectionEnd = newCursorPosition
@@ -334,26 +325,39 @@ export function ChatRoom() {
 
   // 处理消息内容，支持表情显示
   const renderMessageContent = (content: string) => {
-    // 分割文本和表情
-    const parts = content.split(/(\[emoji:[^\]]+\])/g)
+    // 分割文本和表情代码 [text]
+    const parts = content.split(/(\[[^\]]+\])/g)
 
     return parts.map((part, index) => {
-      // 检查是否是表情标记
-      const emojiMatch = part.match(/\[emoji:([^\]]+)\]/)
+      // 检查是否是表情代码
+      const emojiMatch = part.match(/\[([^\]]+)\]/)
       if (emojiMatch) {
-        const emojiUrl = emojiMatch[1]
-        return (
-          <img
-            key={index}
-            src={emojiUrl || "/placeholder.svg"}
-            alt="表情"
-            className="inline-block h-6 align-middle mx-0.5"
-            onError={(e) => {
-              // 如果图片加载失败，显示文本
-              e.currentTarget.outerHTML = "[表情]"
-            }}
-          />
-        )
+        const emojiText = emojiMatch[1]
+
+        // 查找所有表情包中是否有匹配的表情
+        let emojiIcon = null
+        for (const pack of emojiPacks) {
+          if (!pack.emojis) continue
+
+          const emoji = pack.emojis.find((e) => e.text === emojiText)
+          if (emoji) {
+            emojiIcon = emoji.icon
+            break
+          }
+        }
+
+        if (emojiIcon) {
+          return (
+            <span
+              key={index}
+              className="inline-block align-middle mx-0.5"
+              dangerouslySetInnerHTML={{ __html: emojiIcon }}
+            />
+          )
+        } else {
+          // 如果找不到匹配的表情，显示原始文本
+          return <span key={index}>{part}</span>
+        }
       }
 
       // 处理普通文本，支持换行
@@ -368,25 +372,8 @@ export function ChatRoom() {
 
   return (
     <div className="flex flex-col h-full">
-      {showSecurityAlert && (
-        <div className="px-4 pt-4">
-          <Alert variant="default" className="relative flex items-center">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            <div className="flex-1">
-              <AlertTitle className="text-sm font-medium mb-1">安全提示</AlertTitle>
-              <AlertDescription className="text-sm">
-                请注意，公共聊天室中的消息对所有用户可见。请勿在此分享个人敏感信息。
-              </AlertDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={handleCloseAlert} className="ml-2 shrink-0">
-              不再提示
-            </Button>
-          </Alert>
-        </div>
-      )}
-
       <div className="flex-1 min-h-0">
-        <ScrollArea className="h-[calc(100vh-80px)]">
+        <ScrollArea className="h-[calc(100vh-180px)]">
           <div className="space-y-4 max-w-3xl mx-auto p-4">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
@@ -473,11 +460,14 @@ export function ChatRoom() {
             onClear={() => setImageUrl(null)}
           />
 
-          <Popover onOpenChange={(open) => {
-            if (open && emojiPacks.length > 0) {
-              loadEmojiPackContent(emojiPacks[0].id)
-            }
-          }}>
+          <Popover
+            onOpenChange={(open) => {
+              if (open && emojiPacks.length > 0) {
+                // 自动加载第一个表情包
+                loadEmojiPackContent(emojiPacks[0].id)
+              }
+            }}
+          >
             <PopoverTrigger asChild>
               <Button variant="outline" size="icon" className="h-10 w-10">
                 <Smile className="h-5 w-5" />
@@ -510,7 +500,7 @@ export function ChatRoom() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-10 w-10 p-1"
-                                onClick={() => insertEmoji(emoji.icon)}
+                                onClick={() => insertEmoji(emoji)}
                               >
                                 <div dangerouslySetInnerHTML={{ __html: emoji.icon }} />
                               </Button>

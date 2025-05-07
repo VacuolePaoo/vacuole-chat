@@ -1,8 +1,11 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
+
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { createClientSupabaseClient } from "@/lib/supabase"
+import { toast } from "@/hooks/use-toast"
 
 export type User = {
   id: string
@@ -12,6 +15,8 @@ export type User = {
   email: string | null
   created_at: string
   last_seen: string
+  lock_time?: string
+  bg?: string | null
 }
 
 type UserContextType = {
@@ -61,6 +66,57 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     return () => clearInterval(interval)
   }, [user])
+
+  // 监听好友请求和私信通知
+  useEffect(() => {
+    if (!user) return
+
+    // 监听好友请求
+    const friendRequestsChannel = supabase
+      .channel("friend_requests_global")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "friend_requests",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          // 如果当前不在好友请求页面，显示通知
+          if (!window.location.pathname.includes("/friend-requests")) {
+            // 获取发送者信息
+            const { data: senderData } = await supabase
+              .from("users")
+              .select("username")
+              .eq("id", payload.new.sender_id)
+              .single()
+
+            // 显示通知
+            toast({
+              title: "新的好友请求",
+              description: `${senderData?.username || "用户"} 向您发送了好友请求`,
+              action: (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    router.push("/friend-requests")
+                  }}
+                >
+                  查看
+                </Button>
+              ),
+            })
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(friendRequestsChannel)
+    }
+  }, [user, supabase, router])
 
   const login = async (userId: string, pin: string) => {
     try {

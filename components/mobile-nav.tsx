@@ -8,10 +8,11 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { MessageSquare, Users, UserPlus, Bell, User, Menu, LogOut, Globe, Briefcase } from "lucide-react"
+import { MessageSquare, Users, UserPlus, Bell, User, Menu, LogOut, Globe, Briefcase, Info } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useUser } from "@/contexts/user-context"
 import { createClientSupabaseClient } from "@/lib/supabase"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface MobileNavProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -21,6 +22,7 @@ export function MobileNav({ className }: MobileNavProps) {
   const [open, setOpen] = useState(false)
   const { user, logout } = useUser()
   const supabase = createClientSupabaseClient()
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
 
   // 添加未读消息和好友申请计数
   const [unreadCounts, setUnreadCounts] = useState({
@@ -252,16 +254,76 @@ export function MobileNav({ className }: MobileNavProps) {
                     <span className="text-xs text-muted-foreground">ID: {user?.id || ""}</span>
                   </div>
                 </div>
-                <Button variant="outline" className="w-full justify-start gap-2" onClick={logout}>
-                  <LogOut className="h-5 w-5" />
-                  退出登录
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 justify-start gap-2" onClick={logout}>
+                    <LogOut className="h-5 w-5" />
+                    退出登录
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0"
+                    onClick={() => {
+                      setOpen(false)
+                      setIsUpdateDialogOpen(true)
+                    }}
+                  >
+                    <Info className="h-5 w-5" />
+                    <span className="sr-only">更新信息</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </SheetContent>
         </Sheet>
         <h1 className="text-lg font-bold">{getActiveItemName()}</h1>
       </div>
+
+      {/* 更新信息对话框 */}
+      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>最新更新内容</DialogTitle>
+            <DialogDescription>了解聊天室的最新功能和改进</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">2023年5月更新</h3>
+              <ul className="space-y-2 list-disc list-inside text-sm">
+                <li>
+                  <span className="font-medium">私聊端对端加密</span>
+                  <p className="text-muted-foreground ml-6">现在您可以在私聊中启用端对端加密，确保消息安全</p>
+                </li>
+                <li>
+                  <span className="font-medium">移动端优化</span>
+                  <p className="text-muted-foreground ml-6">改进了移动设备上的聊天体验，添加了返回按钮</p>
+                </li>
+                <li>
+                  <span className="font-medium">消息通知</span>
+                  <p className="text-muted-foreground ml-6">在其他页面收到私信或好友申请时会显示通知</p>
+                </li>
+                <li>
+                  <span className="font-medium">界面优化</span>
+                  <p className="text-muted-foreground ml-6">优化了账户ID显示和百宝箱链接卡片的设计</p>
+                </li>
+                <li>
+                  <span className="font-medium">表情包加载优化</span>
+                  <p className="text-muted-foreground ml-6">打开表情选择器时自动加载第一个表情包</p>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">即将推出</h3>
+              <ul className="space-y-2 list-disc list-inside text-sm">
+                <li>群聊功能</li>
+                <li>消息撤回</li>
+                <li>更多表情包</li>
+                <li>语音消息</li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

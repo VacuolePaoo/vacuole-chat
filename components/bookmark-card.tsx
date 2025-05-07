@@ -105,9 +105,9 @@ export function BookmarkCard({ bookmark, onDelete, onEdit }: BookmarkCardProps) 
   const getFaviconUrl = (url: string) => {
     try {
       const urlObj = new URL(url)
-      return `https://toolb.cn/favicon/${urlObj.hostname}`
+      return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=64`
     } catch (error) {
-      return `https://toolb.cn/favicon/example.com`
+      return `https://www.google.com/s2/favicons?domain=example.com&sz=64`
     }
   }
 
@@ -127,47 +127,44 @@ export function BookmarkCard({ bookmark, onDelete, onEdit }: BookmarkCardProps) 
     <>
       <ContextMenu onOpenChange={setIsContextMenuOpen}>
         <ContextMenuTrigger>
-          <Card className={`group overflow-hidden hover:shadow-lg transition-all duration-300 ${isContextMenuOpen ? "z-50" : ""} hover:scale-[1.02] hover:border-primary/20`}>
+          <Card className={`overflow-hidden hover:shadow-md transition-shadow ${isContextMenuOpen ? "z-50" : ""}`}>
             <CardContent className="p-0">
               <a
                 href={bookmark.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block p-6 hover:bg-muted/30 transition-all duration-300"
+                className="block p-4 hover:bg-muted/50 transition-colors"
                 onClick={(e) => {
                   if (isContextMenuOpen) {
                     e.preventDefault()
                   }
                 }}
               >
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl overflow-hidden bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center ring-1 ring-primary/10 group-hover:ring-primary/20 transition-all duration-300 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
                     <img
                       src={getFaviconUrl(bookmark.url) || "/placeholder.svg"}
                       alt={bookmark.title}
-                      className="h-7 w-7 object-contain group-hover:scale-110 transition-transform duration-300"
+                      className="h-6 w-6 object-contain"
                       onError={(e) => {
                         ;(e.target as HTMLImageElement).src = "/placeholder.svg?height=24&width=24"
                       }}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-lg truncate group-hover:text-primary transition-colors duration-300">{bookmark.title}</h3>
-                    <p className="text-sm text-muted-foreground truncate mt-1 group-hover:text-foreground/80 transition-colors duration-300">{bookmark.url}</p>
+                    <h3 className="font-medium truncate mb-1">{bookmark.title}</h3>
+                    <p className="text-xs text-muted-foreground truncate">{bookmark.url}</p>
                   </div>
-                  <ExternalLink className="h-5 w-5 text-muted-foreground flex-shrink-0 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
                 </div>
               </a>
             </CardContent>
-            <CardFooter className="px-6 py-4 bg-muted/5 border-t flex items-center justify-between text-sm text-muted-foreground group-hover:bg-muted/10 transition-colors duration-300">
+            <CardFooter className="p-3 pt-0 border-t flex items-center justify-between text-xs text-muted-foreground">
               <div className="flex items-center">
-                <User className="h-4 w-4 mr-2 group-hover:text-primary transition-colors duration-300" />
-                <span className="group-hover:text-foreground/80 transition-colors duration-300">{bookmark.creator_name}</span>
+                <User className="h-3 w-3 mr-1" />
+                <span>{bookmark.creator_name}</span>
               </div>
-              <div className="flex items-center gap-1 group-hover:text-foreground/80 transition-colors duration-300">
-                <span>•</span>
-                <span>{formatTime(bookmark.created_at)}</span>
-              </div>
+              <div>{formatTime(bookmark.created_at)}</div>
             </CardFooter>
           </Card>
         </ContextMenuTrigger>

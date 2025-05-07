@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import Script from "next/script"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +14,6 @@ import { LogOut, Save, Upload, Lock, Copy, Check, Clock } from "lucide-react"
 import { useUser } from "@/contexts/user-context"
 import { createClientSupabaseClient } from "@/lib/supabase"
 import { SupabaseImage } from "@/components/supabase-image"
-import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function ProfilePage() {
@@ -204,7 +202,7 @@ export default function ProfilePage() {
 
     // 验证输入
     const lockTimeValue = Number.parseInt(lockTimeData.value)
-    if (isNaN(lockTimeValue) || lockTimeValue <= 0) {
+    if (isNaN(lockTimeValue) || lockTimeValue < 0) {
       toast({
         title: "错误",
         description: "请输入有效的锁定时间",
@@ -234,7 +232,7 @@ export default function ProfilePage() {
 
       toast({
         title: "锁定时间已更新",
-        description: "您的页面锁定时间已成功更新",
+        description: lockTimeValue === 0 ? "已设置为永不锁定" : "您的页面锁定时间已成功更新",
       })
     } catch (error) {
       console.error("Failed to update lock time:", error)
@@ -348,7 +346,7 @@ export default function ProfilePage() {
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3 mb-8">
           <TabsTrigger value="profile">个人资料</TabsTrigger>
-          <TabsTrigger value="account">账号信息</TabsTrigger>
+          <TabsTrigger value="account">账户设置</TabsTrigger>
           <TabsTrigger value="security">安全设置</TabsTrigger>
         </TabsList>
 
@@ -429,48 +427,28 @@ export default function ProfilePage() {
         <TabsContent value="account">
           <div className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-6">
-              {/* <h3 className="text-lg font-medium mb-4"></h3> */}
+              <h3 className="text-lg font-medium mb-4">账户信息</h3>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>账户ID</Label>
-                  <Card className="overflow-hidden w-fit">
-                    <CardContent className="p-0">
-                      <div className="flex items-center">
-                        <style jsx>{`
-                          @font-face {
-                            font-family: 'CustomFont';
-                            font-display: swap;
-                          }
-                          .custom-font {
-                            font-family: 'CustomFont', monospace;
-                          }
-                        `}</style>
-                        <Script
-                          src="https://fontsapi.zeoseven.com/358/main/result.css"
-                          strategy="lazyOnload"
-                        />
-                        <div className="flex items-center bg-primary/5 px-3 py-2">
-                          {displayId.split('').map((digit, index) => (
-                            <div
-                              key={index}
-                              className="w-8 h-10 flex items-center justify-center text-lg font-bold custom-font bg-background/50 rounded-md mx-0.5 border border-primary/10"
-                            >
-                              {digit}
-                            </div>
-                          ))}
-                          <div
-                            role="button"
-                            className="flex-1 flex items-center justify-center px-6 py-2 hover:bg-muted/50 transition-colors cursor-pointer w-40"
-                            onClick={copyToClipboard}
-                          >
-                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                            <span className="ml-2">{copied ? "已复制" : "复制"}</span>
-                          </div>
+                  <Label className="block mb-2">账户ID</Label>
+                  <div className="inline-flex items-center bg-card border rounded-md">
+                    <div className="flex gap-2 p-4">
+                      {displayId.split("").map((digit, index) => (
+                        <div
+                          key={index}
+                          className="w-10 h-10 flex items-center justify-center bg-muted rounded-md font-mono text-xl font-bold"
+                        >
+                          {digit}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      ))}
+                    </div>
+                    <Button variant="ghost" size="sm" className="mx-2" onClick={copyToClipboard}>
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      <span className="ml-2">{copied ? "已复制" : "复制"}</span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">这是您的唯一账户ID，可用于添加好友和登录</p>
                 </div>
 
                 <div className="space-y-2">
@@ -572,7 +550,7 @@ export default function ProfilePage() {
                     <Input
                       id="lockTime"
                       type="number"
-                      min="1"
+                      min="0"
                       value={lockTimeData.value}
                       onChange={handleLockTimeValueChange}
                       className="w-24"
@@ -587,10 +565,12 @@ export default function ProfilePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <p className="text-xs text-muted-foreground">设置页面在无操作多长时间后自动锁定，建议设置为1-5分钟</p>
+                  <p className="text-xs text-muted-foreground">
+                    设置页面在无操作多长时间后自动锁定，建议设置为1-5分钟。设置为0表示永不锁定。
+                  </p>
                 </div>
 
-                <Button type="submit" className="w-full md:w-auto" disabled={isChangingLockTime || !lockTimeData.value}>
+                <Button type="submit" className="w-full md:w-auto" disabled={isChangingLockTime}>
                   {isChangingLockTime ? (
                     <span>更新中...</span>
                   ) : (

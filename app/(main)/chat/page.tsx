@@ -1,7 +1,7 @@
 "use client"
 import { useSearchParams } from "next/navigation"
 import { ChatRoom } from "@/components/chat-room"
-import { PrivateChat } from "@/components/private-chat"
+import PrivateChat from "@/components/private-chat"
 
 export default function ChatPage() {
   const searchParams = useSearchParams()

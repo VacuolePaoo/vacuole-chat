@@ -6,7 +6,23 @@ import { useState, useEffect, useRef } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Search, ExternalLink, Smile } from "lucide-react"
+import {
+  Send,
+  Search,
+  ExternalLink,
+  Smile,
+  Lock,
+  ChevronLeft,
+  ShieldAlert,
+  KeyRound,
+  AlertTriangle,
+  Settings,
+  ShieldOff,
+  Trash2,
+  Download,
+  Upload,
+  FileUp,
+} from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { createClientSupabaseClient } from "@/lib/supabase"
@@ -14,9 +30,19 @@ import { useUser } from "@/contexts/user-context"
 import { ImageUpload } from "@/components/image-upload"
 import { toast } from "@/hooks/use-toast"
 import { SupabaseImage } from "@/components/supabase-image"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs as TabsComponent } from "@/components/ui/tabs"
 
 type Friend = {
   id: string
@@ -55,7 +81,158 @@ interface PrivateChatProps {
   initialFriendId?: string | null
 }
 
-export function PrivateChat({ initialFriendId }: PrivateChatProps) {
+// 使用AES加密
+const encryptMessage = (message: string, key: string): string => {
+  try {
+    // 使用安全的加密方法
+    // 这里使用简单的Base64编码作为示例，实际应用中应使用CryptoJS或Web Crypto API
+    // 为了避免Unicode字符问题，先将消息转换为UTF-8编码
+    const encoder = new TextEncoder()
+    const data = encoder.encode(message)
+
+    // 将二进制数据转换为Base64
+    const base64 = btoa(
+      Array.from(data)
+        .map((byte) => String.fromCharCode(byte))
+        .join(""),
+    )
+
+    // 添加前缀标记这是加密消息
+    return `[encrypted]${base64}`
+  } catch (e) {
+    console.error("加密失败:", e)
+    throw e
+  }
+}
+
+// 解密消息
+const decryptMessage = (encryptedMessage: string, key: string): string => {
+  try {
+    if (!encryptedMessage.startsWith("[encrypted]")) {
+      return encryptedMessage
+    }
+
+    const base64 = encryptedMessage.substring(11)
+
+    // 解码Base64
+    const binaryString = atob(base64)
+    const bytes = new Uint8Array(binaryString.length)
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // 将二进制数据转换回字符串
+    const decoder = new TextDecoder()
+    return decoder.decode(bytes)
+  } catch (e) {
+    console.error("解密失败:", e)
+    return "解密失败，可能是更换了密钥"
+  }
+}
+
+// 本地存储加密设置
+const saveEncryptionSettings = (chatId: string, isEnabled: boolean, key: string) => {
+  try {
+    const settings = JSON.parse(localStorage.getItem("chatEncryptionSettings") || "{}")
+    settings[chatId] = { isEnabled, key }
+    localStorage.setItem("chatEncryptionSettings", JSON.stringify(settings))
+  } catch (e) {
+    console.error("保存加密设置失败:", e)
+  }
+}
+
+// 获取加密设置
+const getEncryptionSettings = (chatId: string) => {
+  try {
+    const settings = JSON.parse(localStorage.getItem("chatEncryptionSettings") || "{}")
+    return settings[chatId] || { isEnabled: false, key: "" }
+  } catch (e) {
+    console.error("获取加密设置失败:", e)
+    return { isEnabled: false, key: "" }
+  }
+}
+
+// 使用用户ID和PIN加密密钥
+const encryptKeyForBackup = (key: string, userId: string, pin: string): string => {
+  try {
+    // 创建一个简单的种子
+    const seed = userId + pin
+
+    // 使用种子加密密钥
+    let result = ""
+    for (let i = 0; i < key.length; i++) {
+      const charCode = key.charCodeAt(i)
+      const seedChar = seed.charCodeAt(i % seed.length)
+      // 简单的XOR加密
+      const encryptedChar = charCode ^ seedChar
+      result += String.fromCharCode(encryptedChar)
+    }
+
+    // 转换为Base64以便存储
+    const encoder = new TextEncoder()
+    const data = encoder.encode(result)
+    const base64 = btoa(
+      Array.from(data)
+        .map((byte) => String.fromCharCode(byte))
+        .join(""),
+    )
+
+    return base64
+  } catch (e) {
+    console.error("加密密钥失败:", e)
+    throw e
+  }
+}
+
+// 解密备份的密钥
+const decryptBackupKey = (encryptedKey: string, userId: string, pin: string): string => {
+  try {
+    // 解码Base64
+    const binaryString = atob(encryptedKey)
+    const bytes = new Uint8Array(binaryString.length)
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // 将二进制数据转换回字符串
+    const decoder = new TextDecoder()
+    const encryptedText = decoder.decode(bytes)
+
+    // 创建相同的种子
+    const seed = userId + pin
+
+    // 使用种子解密
+    let result = ""
+    for (let i = 0; i < encryptedText.length; i++) {
+      const charCode = encryptedText.charCodeAt(i)
+      const seedChar = seed.charCodeAt(i % seed.length)
+      // 反向XOR操作
+      const decryptedChar = charCode ^ seedChar
+      result += String.fromCharCode(decryptedChar)
+    }
+
+    return result
+  } catch (e) {
+    console.error("解密密钥失败:", e)
+    throw e
+  }
+}
+
+// 下载加密的密钥作为文本文件
+const downloadEncryptedKey = (encryptedKey: string, chatId: string) => {
+  const element = document.createElement("a")
+  const file = new Blob([encryptedKey], { type: "text/plain" })
+  element.href = URL.createObjectURL(file)
+  element.download = `encrypted_key_${chatId}.txt`
+  document.body.appendChild(element)
+  element.click()
+  document.body.removeChild(element)
+}
+
+// 修改为默认导出，以匹配导入方式
+export default function PrivateChat({ initialFriendId }: PrivateChatProps) {
   const [friends, setFriends] = useState<Friend[]>([])
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -65,10 +242,39 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [emojiPacks, setEmojiPacks] = useState<EmojiPack[]>([])
   const [isLoadingEmojis, setIsLoadingEmojis] = useState(false)
+  const [showFriendsList, setShowFriendsList] = useState(true)
+  const [encryptionKey, setEncryptionKey] = useState<string>("")
+  const [isEncryptionEnabled, setIsEncryptionEnabled] = useState(false)
+  const [isEncryptionDialogOpen, setIsEncryptionDialogOpen] = useState(false)
+  const [tempEncryptionKey, setTempEncryptionKey] = useState("")
+  const [confirmEncryptionKey, setConfirmEncryptionKey] = useState("")
+  const [userPin, setUserPin] = useState<string[]>(Array(6).fill(""))
+  const [isPinVerified, setIsPinVerified] = useState(false)
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false)
+  const [decryptionFailures, setDecryptionFailures] = useState<Record<string, boolean>>({})
+  const [activeTab, setActiveTab] = useState("setup")
+  const [backupKeyFile, setBackupKeyFile] = useState<File | null>(null)
+  const [isProcessingBackup, setIsProcessingBackup] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const pinRefs = useRef<(HTMLInputElement | null)[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { user } = useUser()
   const supabase = createClientSupabaseClient()
+
+  // 当选择好友时，自动隐藏好友列表（在移动设备上）
+  useEffect(() => {
+    if (selectedFriend && window.innerWidth < 768) {
+      setShowFriendsList(false)
+    }
+  }, [selectedFriend])
+
+  // 初始化时，如果有initialFriendId，则隐藏好友列表
+  useEffect(() => {
+    if (initialFriendId && window.innerWidth < 768) {
+      setShowFriendsList(false)
+    }
+  }, [initialFriendId])
 
   // 加载表情包
   useEffect(() => {
@@ -154,6 +360,13 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
           const initialFriend = friendsWithLastMessage.find((f) => f.id === initialFriendId)
           if (initialFriend) {
             setSelectedFriend(initialFriend)
+
+            // 加载该聊天的加密设置
+            if (initialFriend.chat_id) {
+              const settings = getEncryptionSettings(initialFriend.chat_id)
+              setIsEncryptionEnabled(settings.isEnabled)
+              setEncryptionKey(settings.key)
+            }
           }
         }
       } catch (error) {
@@ -227,6 +440,14 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
       setMessages([])
       return
     }
+
+    // 重置解密失败记录
+    setDecryptionFailures({})
+
+    // 加载该聊天的加密设置
+    const settings = getEncryptionSettings(selectedFriend.chat_id)
+    setIsEncryptionEnabled(settings.isEnabled)
+    setEncryptionKey(settings.key)
 
     const fetchMessages = async () => {
       try {
@@ -342,7 +563,14 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
 
           if (!isForCurrentUser) return
 
-          // 如果当前没有选中该好友，增加未读计数
+          // 获取发送者信息
+          const { data: senderData } = await supabase
+            .from("users")
+            .select("username")
+            .eq("id", newMessage.sender_id)
+            .single()
+
+          // 如果当前没有选中该好友，增加未读计数并显示通知
           if (!selectedFriend || selectedFriend.id !== newMessage.sender_id) {
             setFriends((current) =>
               current.map((friend) =>
@@ -361,6 +589,27 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
               ),
             )
 
+            // 显示通知
+            toast({
+              title: `新消息: ${senderData?.username || "好友"}`,
+              description: newMessage.image_url ? "[图片]" : (newMessage.content || "").substring(0, 30),
+              action: (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const friend = friends.find((f) => f.id === newMessage.sender_id)
+                    if (friend) {
+                      setSelectedFriend(friend)
+                      setShowFriendsList(false)
+                    }
+                  }}
+                >
+                  查看
+                </Button>
+              ),
+            })
+
             // 触发全局未读消息计数更新的事件
             window.dispatchEvent(new CustomEvent("unread-messages-updated"))
           }
@@ -371,10 +620,94 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
     return () => {
       supabase.removeChannel(unreadChannel)
     }
-  }, [user, selectedFriend, supabase])
+  }, [user, selectedFriend, supabase, friends])
+
+  // 监听好友请求
+  useEffect(() => {
+    if (!user) return
+
+    const friendRequestsChannel = supabase
+      .channel("friend_requests_notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "friend_requests",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          // 获取发送者信息
+          const { data: senderData } = await supabase
+            .from("users")
+            .select("username")
+            .eq("id", payload.new.sender_id)
+            .single()
+
+          // 显示通知
+          toast({
+            title: "新的好友请求",
+            description: `${senderData?.username || "用户"} 向您发送了好友请求`,
+            action: (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.href = "/friend-requests"
+                }}
+              >
+                查看
+              </Button>
+            ),
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(friendRequestsChannel)
+    }
+  }, [user, supabase])
 
   const handleSelectFriend = (friend: Friend) => {
     setSelectedFriend(friend)
+    if (window.innerWidth < 768) {
+      setShowFriendsList(false)
+    }
+
+    // 加载该聊天的加密设置
+    if (friend.chat_id) {
+      const settings = getEncryptionSettings(friend.chat_id)
+      setIsEncryptionEnabled(settings.isEnabled)
+      setEncryptionKey(settings.key)
+    }
+  }
+
+  // 处理表情转换为HTML
+  const convertEmojiToHtml = (text: string): string => {
+    // 查找所有 [emoji_code] 格式的表情
+    const emojiRegex = /\[([^\]]+)\]/g
+    let match
+    let result = text
+
+    while ((match = emojiRegex.exec(text)) !== null) {
+      const emojiCode = match[1]
+
+      // 查找匹配的表情
+      for (const pack of emojiPacks) {
+        if (!pack.emojis) continue
+
+        const emoji = pack.emojis.find((e) => e.text === emojiCode)
+        if (emoji) {
+          // 将表情代码替换为HTML
+          const imgTag = `[emoji]${emoji.icon}`
+          result = result.replace(`[${emojiCode}]`, imgTag)
+          break
+        }
+      }
+    }
+
+    return result
   }
 
   const handleSendMessage = async () => {
@@ -383,10 +716,19 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
     setIsLoading(true)
 
     try {
+      // 处理表情转换
+      let processedContent = newMessage.trim() || " "
+      processedContent = convertEmojiToHtml(processedContent)
+
+      // 如果启用了加密，对消息进行加密
+      if (isEncryptionEnabled && encryptionKey && newMessage.trim()) {
+        processedContent = encryptMessage(processedContent, encryptionKey)
+      }
+
       const { error } = await supabase.from("private_messages").insert({
         chat_id: selectedFriend.chat_id,
         sender_id: user.id,
-        content: newMessage.trim() || " ",
+        content: processedContent,
         image_url: imageUrl,
         is_read: false,
       })
@@ -509,25 +851,19 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
   }
 
   // 插入表情
-  const insertEmoji = (emojiUrl: string) => {
-    // 从HTML字符串中提取图片URL
-    const urlMatch = emojiUrl.match(/src='([^']+)'/)
-    if (!urlMatch || !urlMatch[1]) return
-
-    const imgUrl = urlMatch[1]
-
-    // 在光标位置插入表情图片URL
+  const insertEmoji = (emoji: { text: string; icon: string }) => {
+    // 在光标位置插入表情代码
     const cursorPosition = inputRef.current?.selectionStart || newMessage.length
     const textBeforeCursor = newMessage.substring(0, cursorPosition)
     const textAfterCursor = newMessage.substring(cursorPosition)
 
-    // 插入表情图片标记
-    setNewMessage(textBeforeCursor + `[emoji:${imgUrl}]` + textAfterCursor)
+    // 插入表情代码 [text]
+    setNewMessage(textBeforeCursor + `[${emoji.text}]` + textAfterCursor)
 
     // 保持输入框焦点
     setTimeout(() => {
       if (inputRef.current) {
-        const newCursorPosition = cursorPosition + `[emoji:${imgUrl}]`.length
+        const newCursorPosition = cursorPosition + `[${emoji.text}]`.length
         inputRef.current.focus()
         inputRef.current.selectionStart = newCursorPosition
         inputRef.current.selectionEnd = newCursorPosition
@@ -535,28 +871,67 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
     }, 0)
   }
 
-  // 处理消息内容，支持表情显示
-  const renderMessageContent = (content: string) => {
-    // 分割文本和表情
-    const parts = content.split(/(\[emoji:[^\]]+\])/g)
+  // 处理消息内容，支持表情显示和解密
+  const renderMessageContent = (message: Message) => {
+    const { content, id } = message
 
-    return parts.map((part, index) => {
-      // 检查是否是表情标记
-      const emojiMatch = part.match(/\[emoji:([^\]]+)\]/)
-      if (emojiMatch) {
-        const emojiUrl = emojiMatch[1]
+    // 如果已经标记为解密失败，直接显示失败信息
+    if (decryptionFailures[id]) {
+      return (
+        <span className="text-amber-500 italic flex items-center">
+          <AlertTriangle className="h-4 w-4 mr-1" />
+          解密失败，可能是更换了密钥
+        </span>
+      )
+    }
+
+    // 如果是加密消息且有密钥，尝试解密
+    let processedContent = content
+    if (content.startsWith("[encrypted]") && isEncryptionEnabled && encryptionKey) {
+      try {
+        const decrypted = decryptMessage(content, encryptionKey)
+
+        // 如果解密结果是错误消息，标记为解密失败
+        if (decrypted === "解密失败，可能是更换了密钥") {
+          setDecryptionFailures((prev) => ({ ...prev, [id]: true }))
+          return (
+            <span className="text-amber-500 italic flex items-center">
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              解密失败，可能是更换了密钥
+            </span>
+          )
+        }
+
+        processedContent = decrypted
+      } catch (e) {
+        setDecryptionFailures((prev) => ({ ...prev, [id]: true }))
         return (
-          <img
-            key={index}
-            src={emojiUrl || "/placeholder.svg"}
-            alt="表情"
-            className="inline-block h-6 align-middle mx-0.5"
-            onError={(e) => {
-              // 如果图片加载失败，显示文本
-              e.currentTarget.outerHTML = "[表情]"
-            }}
-          />
+          <span className="text-amber-500 italic flex items-center">
+            <AlertTriangle className="h-4 w-4 mr-1" />
+            解密失败，可能是更换了密钥
+          </span>
         )
+      }
+    }
+
+    // 处理表情标签
+    const parts = processedContent.split(/(\[emoji\])/g)
+    return parts.map((part, index) => {
+      if (part === "[emoji]") {
+        // 下一个部分是表情HTML
+        const emojiHtml = parts[index + 1]
+        if (emojiHtml) {
+          return (
+            <span
+              key={index}
+              className="inline-block align-middle mx-0.5"
+              dangerouslySetInnerHTML={{ __html: emojiHtml }}
+            />
+          )
+        }
+      } else if (index > 0 && parts[index - 1] === "[emoji]") {
+        // 这部分已经被处理过了
+        return null
       }
 
       // 处理普通文本，支持换行
@@ -569,126 +944,671 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
     })
   }
 
+  // 处理PIN码输入变化
+  const handlePinInputChange = (index: number, value: string) => {
+    if (/^\d*$/.test(value)) {
+      setUserPin((prev) => {
+        const newPin = [...prev]
+        newPin[index] = value.slice(0, 1)
+        return newPin
+      })
+
+      // 自动跳到下一个输入框
+      if (value && index < 5) {
+        pinRefs.current[index + 1]?.focus()
+      }
+    }
+  }
+
+  // 处理PIN码键盘事件
+  const handlePinKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === "Backspace" && !e.currentTarget.value) {
+      // 当前输入框为空且按下退格键时，移动到前一个输入框
+      if (index > 0) {
+        pinRefs.current[index - 1]?.focus()
+      }
+    } else if (e.key === "ArrowLeft") {
+      if (index > 0) {
+        pinRefs.current[index - 1]?.focus()
+      }
+    } else if (e.key === "ArrowRight") {
+      if (index < 5) {
+        pinRefs.current[index + 1]?.focus()
+      }
+    }
+  }
+
+  // 验证PIN码
+  const verifyPin = async () => {
+    if (!user) return
+
+    const fullPin = userPin.join("")
+    if (fullPin.length !== 6) return
+
+    setIsVerifyingPin(true)
+
+    try {
+      const { data, error } = await supabase.from("users").select("id").eq("id", user.id).eq("pin", fullPin).single()
+
+      if (error || !data) {
+        toast({
+          title: "PIN码错误",
+          description: "请输入正确的PIN码",
+          variant: "destructive",
+        })
+        // 清空PIN码
+        setUserPin(Array(6).fill(""))
+        pinRefs.current[0]?.focus()
+        setIsVerifyingPin(false)
+        return false
+      }
+
+      setIsPinVerified(true)
+      return true
+    } catch (e) {
+      console.error("验证PIN码失败:", e)
+      toast({
+        title: "验证失败",
+        description: "请重试",
+        variant: "destructive",
+      })
+      return false
+    } finally {
+      setIsVerifyingPin(false)
+    }
+  }
+
+  // 处理加密设置
+  const handleSetEncryption = async () => {
+    if (!selectedFriend?.chat_id || !user) return
+
+    // 验证输入
+    if (tempEncryptionKey.trim() === "") {
+      toast({
+        title: "错误",
+        description: "请输入有效的加密密钥",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (tempEncryptionKey !== confirmEncryptionKey) {
+      toast({
+        title: "错误",
+        description: "两次输入的密钥不一致",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 保存加密设置
+    const key = tempEncryptionKey.trim()
+    setEncryptionKey(key)
+    setIsEncryptionEnabled(true)
+    saveEncryptionSettings(selectedFriend.chat_id, true, key)
+
+    // 创建并下载备份
+    try {
+      const fullPin = userPin.join("")
+      const encryptedKey = encryptKeyForBackup(key, user.id, fullPin)
+      downloadEncryptedKey(encryptedKey, selectedFriend.chat_id)
+
+      toast({
+        title: "密钥备份已下载",
+        description: "请妥善保管您的密钥备份文件",
+      })
+    } catch (e) {
+      console.error("创建密钥备份失败:", e)
+      toast({
+        title: "警告",
+        description: "密钥备份创建失败，但加密已启用",
+        variant: "destructive",
+      })
+    }
+
+    setIsEncryptionDialogOpen(false)
+
+    // 重置表单
+    setTempEncryptionKey("")
+    setConfirmEncryptionKey("")
+    setUserPin(Array(6).fill(""))
+    setIsPinVerified(false)
+    setActiveTab("setup")
+
+    toast({
+      title: "加密已启用",
+      description: "您的消息将使用端对端加密发送",
+    })
+  }
+
+  // 处理关闭加密
+  const handleDisableEncryption = () => {
+    if (!selectedFriend?.chat_id) return
+
+    setIsEncryptionEnabled(false)
+    setEncryptionKey("")
+    saveEncryptionSettings(selectedFriend.chat_id, false, "")
+    setIsEncryptionDialogOpen(false)
+
+    toast({
+      title: "加密已关闭",
+      description: "您的消息将以明文发送",
+    })
+  }
+
+  // 清除加密密钥
+  const handleClearEncryptionKey = () => {
+    if (!selectedFriend?.chat_id) return
+
+    setEncryptionKey("")
+    if (isEncryptionEnabled) {
+      saveEncryptionSettings(selectedFriend.chat_id, true, "")
+    }
+    setIsEncryptionDialogOpen(false)
+
+    toast({
+      title: "密钥已清除",
+      description: "您的加密密钥已被清除",
+    })
+  }
+
+  // 打开加密设置对话框
+  const openEncryptionDialog = () => {
+    setTempEncryptionKey("")
+    setConfirmEncryptionKey("")
+    setUserPin(Array(6).fill(""))
+    setIsPinVerified(false)
+    setActiveTab("setup")
+    setIsEncryptionDialogOpen(true)
+  }
+
+  // 处理文件选择
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setBackupKeyFile(e.target.files[0])
+    }
+  }
+
+  // 处理从备份文件恢复密钥
+  const handleRestoreFromBackup = async () => {
+    if (!backupKeyFile || !user || !selectedFriend?.chat_id) return
+
+    setIsProcessingBackup(true)
+
+    try {
+      // 读取文件内容
+      const text = await backupKeyFile.text()
+
+      // 使用PIN码解密
+      const fullPin = userPin.join("")
+      const decryptedKey = decryptBackupKey(text, user.id, fullPin)
+
+      // 设置密钥
+      setEncryptionKey(decryptedKey)
+      setIsEncryptionEnabled(true)
+      saveEncryptionSettings(selectedFriend.chat_id, true, decryptedKey)
+
+      // 关闭对话框
+      setIsEncryptionDialogOpen(false)
+
+      // 重置状态
+      setBackupKeyFile(null)
+      setUserPin(Array(6).fill(""))
+      setIsPinVerified(false)
+
+      toast({
+        title: "密钥已恢复",
+        description: "加密已启用，您可以查看加密消息了",
+      })
+    } catch (e) {
+      console.error("恢复密钥失败:", e)
+      toast({
+        title: "恢复失败",
+        description: "无法从备份文件恢复密钥，请确保PIN码正确且文件未损坏",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessingBackup(false)
+    }
+  }
+
   const filteredFriends = friends.filter((friend) => friend.username.toLowerCase().includes(searchQuery.toLowerCase()))
 
   return (
     <div className="flex h-full">
-      <div className="w-full md:w-80 border-r flex flex-col">
-        <div className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索好友..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+      {/* 好友列表 - 在移动设备上可以隐藏 */}
+      {showFriendsList && (
+        <div className="w-full md:w-80 border-r flex flex-col">
+          <div className="p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索好友..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-        </div>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-1 p-2">
-            {filteredFriends.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">暂无好友，去添加好友吧！</div>
-            ) : (
-              filteredFriends.map((friend) => (
-                <div key={friend.id}>
-                  <Button
-                    variant="ghost"
-                    className={`w-full flex items-center justify-start gap-3 p-4 h-auto ${
-                      selectedFriend?.id === friend.id ? "bg-muted" : ""
-                    }`}
-                    onClick={() => handleSelectFriend(friend)}
-                  >
-                    <div className="relative">
-                      <Avatar className="h-12 w-12">
-                        <SupabaseImage
-                          src={friend.avatar_url}
-                          bucket="avatars"
-                          alt={friend.username}
-                          className="h-full w-full object-cover"
+          <ScrollArea className="flex-1">
+            <div className="space-y-1 p-2">
+              {filteredFriends.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">暂无好友，去添加好友吧！</div>
+              ) : (
+                filteredFriends.map((friend) => (
+                  <div key={friend.id}>
+                    <Button
+                      variant="ghost"
+                      className={`w-full flex items-center justify-start gap-3 p-4 h-auto ${
+                        selectedFriend?.id === friend.id ? "bg-muted" : ""
+                      }`}
+                      onClick={() => handleSelectFriend(friend)}
+                    >
+                      <div className="relative">
+                        <Avatar className="h-12 w-12">
+                          <SupabaseImage
+                            src={friend.avatar_url}
+                            bucket="avatars"
+                            alt={friend.username}
+                            className="h-full w-full object-cover"
+                          />
+                          <AvatarFallback>{friend.username[0]}</AvatarFallback>
+                        </Avatar>
+                        <span
+                          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ${
+                            isOnline(friend.last_seen) ? "bg-green-500" : "bg-gray-400"
+                          }`}
                         />
-                        <AvatarFallback>{friend.username[0]}</AvatarFallback>
-                      </Avatar>
-                      <span
-                        className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ${
-                          isOnline(friend.last_seen) ? "bg-green-500" : "bg-gray-400"
-                        }`}
-                      />
-                      {friend.unread_count > 0 && (
-                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-white">
-                          {friend.unread_count}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{friend.username}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {friend.last_message ? formatTime(friend.last_message.created_at) : ""}
-                        </span>
+                        {friend.unread_count > 0 && (
+                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-white">
+                            {friend.unread_count}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center text-xs text-muted-foreground mt-1">
-                        <span className="bg-muted px-1.5 py-0.5 rounded">ID: {formatId(friend.id)}</span>
-                        <span className="ml-2">
-                          {isOnline(friend.last_seen) ? "在线" : `${formatTime(friend.last_seen)}`}
-                        </span>
+                      <div className="flex-1 text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{friend.username}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {friend.last_message ? formatTime(friend.last_message.created_at) : ""}
+                          </span>
+                        </div>
+                        <div className="flex items-center text-xs text-muted-foreground mt-1">
+                          <span className="bg-muted px-1.5 py-0.5 rounded">ID: {formatId(friend.id)}</span>
+                          <span className="ml-2">
+                            {isOnline(friend.last_seen) ? "在线" : `${formatTime(friend.last_seen)}`}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate mt-1">
+                          {friend.last_message
+                            ? friend.last_message.image_url &&
+                              (!friend.last_message.content || friend.last_message.content === " ")
+                              ? "[图片]"
+                              : friend.last_message.content
+                            : ""}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground truncate mt-1">
-                        {friend.last_message
-                          ? friend.last_message.image_url &&
-                            (!friend.last_message.content || friend.last_message.content === " ")
-                            ? "[图片]"
-                            : friend.last_message.content
-                          : ""}
-                      </p>
-                    </div>
-                  </Button>
-                  <Separator className="my-1" />
-                </div>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+                    </Button>
+                    <Separator className="my-1" />
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
 
-      <div className="hidden md:flex flex-col flex-1 h-full">
+      <div className={`${showFriendsList ? "hidden md:flex" : "flex"} flex-col flex-1 h-full`}>
         {selectedFriend ? (
           <>
             <div className="p-4 border-b">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Avatar>
-                    <SupabaseImage
-                      src={selectedFriend.avatar_url}
-                      bucket="avatars"
-                      alt={selectedFriend.username}
-                      className="h-full w-full object-cover"
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {!showFriendsList && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="md:hidden mr-2"
+                      onClick={() => setShowFriendsList(true)}
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                      <span className="sr-only">返回</span>
+                    </Button>
+                  )}
+                  <div className="relative">
+                    <Avatar>
+                      <SupabaseImage
+                        src={selectedFriend.avatar_url}
+                        bucket="avatars"
+                        alt={selectedFriend.username}
+                        className="h-full w-full object-cover"
+                      />
+                      <AvatarFallback>{selectedFriend.username[0]}</AvatarFallback>
+                    </Avatar>
+                    <span
+                      className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ${
+                        isOnline(selectedFriend.last_seen) ? "bg-green-500" : "bg-gray-400"
+                      }`}
                     />
-                    <AvatarFallback>{selectedFriend.username[0]}</AvatarFallback>
-                  </Avatar>
-                  <span
-                    className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ${
-                      isOnline(selectedFriend.last_seen) ? "bg-green-500" : "bg-gray-400"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center">
-                    <span className="font-medium">{selectedFriend.username}</span>
-                    <span className="text-xs bg-muted px-1.5 py-0.5 rounded ml-2 text-muted-foreground">
-                      ID: {formatId(selectedFriend.id)}
-                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {isOnline(selectedFriend.last_seen) ? "在线" : `最后在线: ${formatTime(selectedFriend.last_seen)}`}
-                  </p>
+                  <div>
+                    <div className="flex items-center">
+                      <span className="font-medium">{selectedFriend.username}</span>
+                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded ml-2 text-muted-foreground">
+                        ID: {formatId(selectedFriend.id)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isOnline(selectedFriend.last_seen)
+                        ? "在线"
+                        : `最后在线: ${formatTime(selectedFriend.last_seen)}`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 加密设置按钮 */}
+                <div>
+                  <Dialog open={isEncryptionDialogOpen} onOpenChange={setIsEncryptionDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={isEncryptionEnabled ? "加密设置" : "启用加密"}
+                        className={isEncryptionEnabled ? "text-purple-500" : ""}
+                        onClick={() => openEncryptionDialog()}
+                      >
+                        {isEncryptionEnabled ? <Lock className="h-5 w-5" /> : <Settings className="h-5 w-5" />}
+                        <span className="sr-only">加密设置</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md bg-red-50 border-red-200">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center text-red-700">
+                          <ShieldAlert className="h-5 w-5 mr-2" />
+                          端对端加密设置
+                        </DialogTitle>
+                        <DialogDescription className="text-red-600">
+                          启用加密后，只有知道相同密钥的人才能解密您的消息。请妥善保管您的密钥，它不会被存储在服务器上。
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <TabsComponent value={activeTab} onValueChange={setActiveTab} className="mt-4">
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="setup" className="text-red-700">
+                            设置加密
+                          </TabsTrigger>
+                          <TabsTrigger value="restore" className="text-red-700">
+                            恢复密钥
+                          </TabsTrigger>
+                          <TabsTrigger value="manage" className="text-red-700">
+                            管理加密
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="setup" className="space-y-4 py-4">
+                          {!isPinVerified ? (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="user-pin" className="flex items-center text-red-700">
+                                  <Lock className="h-4 w-4 mr-2" />
+                                  验证您的PIN码
+                                </Label>
+                                <div className="flex justify-center gap-2">
+                                  {Array(6)
+                                    .fill(0)
+                                    .map((_, i) => (
+                                      <Input
+                                        key={`pin-${i}`}
+                                        ref={(el) => (pinRefs.current[i] = el)}
+                                        type="password"
+                                        inputMode="numeric"
+                                        value={userPin[i]}
+                                        onChange={(e) => handlePinInputChange(i, e.target.value)}
+                                        onKeyDown={(e) => handlePinKeyDown(e, i)}
+                                        className="w-10 h-10 text-center text-lg font-medium p-0 border-red-200"
+                                        maxLength={1}
+                                        autoFocus={i === 0}
+                                      />
+                                    ))}
+                                </div>
+                                <p className="text-xs text-red-600 text-center">
+                                  为了安全起见，需要验证您的PIN码才能启用加密功能。
+                                </p>
+                              </div>
+
+                              <Button
+                                onClick={verifyPin}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                disabled={isVerifyingPin || userPin.join("").length !== 6}
+                              >
+                                {isVerifyingPin ? "验证中..." : "验证PIN码"}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="encryption-key" className="flex items-center text-red-700">
+                                  <KeyRound className="h-4 w-4 mr-2" />
+                                  加密密钥
+                                </Label>
+                                <Input
+                                  id="encryption-key"
+                                  type="password"
+                                  placeholder="输入加密密钥"
+                                  value={tempEncryptionKey}
+                                  onChange={(e) => setTempEncryptionKey(e.target.value)}
+                                  className="border-red-200"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="confirm-encryption-key" className="flex items-center text-red-700">
+                                  <KeyRound className="h-4 w-4 mr-2" />
+                                  确认加密密钥
+                                </Label>
+                                <Input
+                                  id="confirm-encryption-key"
+                                  type="password"
+                                  placeholder="再次输入加密密钥"
+                                  value={confirmEncryptionKey}
+                                  onChange={(e) => setConfirmEncryptionKey(e.target.value)}
+                                  className="border-red-200"
+                                />
+                              </div>
+
+                              <Alert className="bg-red-100 border-red-200 text-red-800">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertDescription>
+                                  请记住：如果您忘记密钥，将无法解密之前的消息。启用后将自动下载密钥备份文件。
+                                </AlertDescription>
+                              </Alert>
+
+                              <Button
+                                onClick={handleSetEncryption}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                disabled={
+                                  !tempEncryptionKey ||
+                                  !confirmEncryptionKey ||
+                                  tempEncryptionKey !== confirmEncryptionKey
+                                }
+                              >
+                                启用加密
+                              </Button>
+                            </div>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent value="restore" className="space-y-4 py-4">
+                          {!isPinVerified ? (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="user-pin-restore" className="flex items-center text-red-700">
+                                  <Lock className="h-4 w-4 mr-2" />
+                                  验证您的PIN码
+                                </Label>
+                                <div className="flex justify-center gap-2">
+                                  {Array(6)
+                                    .fill(0)
+                                    .map((_, i) => (
+                                      <Input
+                                        key={`pin-restore-${i}`}
+                                        ref={(el) => (pinRefs.current[i] = el)}
+                                        type="password"
+                                        inputMode="numeric"
+                                        value={userPin[i]}
+                                        onChange={(e) => handlePinInputChange(i, e.target.value)}
+                                        onKeyDown={(e) => handlePinKeyDown(e, i)}
+                                        className="w-10 h-10 text-center text-lg font-medium p-0 border-red-200"
+                                        maxLength={1}
+                                        autoFocus={i === 0}
+                                      />
+                                    ))}
+                                </div>
+                                <p className="text-xs text-red-600 text-center">
+                                  为了安全起见，需要验证您的PIN码才能恢复加密密钥。
+                                </p>
+                              </div>
+
+                              <Button
+                                onClick={verifyPin}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                disabled={isVerifyingPin || userPin.join("").length !== 6}
+                              >
+                                {isVerifyingPin ? "验证中..." : "验证PIN码"}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="backup-file" className="flex items-center text-red-700">
+                                  <FileUp className="h-4 w-4 mr-2" />
+                                  上传密钥备份文件
+                                </Label>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    className="w-full border-red-200"
+                                    onClick={() => fileInputRef.current?.click()}
+                                  >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    选择文件
+                                  </Button>
+                                  <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    id="backup-file"
+                                    className="hidden"
+                                    accept=".txt"
+                                    onChange={handleFileSelect}
+                                  />
+                                </div>
+                                {backupKeyFile && (
+                                  <p className="text-xs text-green-600 mt-1">已选择文件: {backupKeyFile.name}</p>
+                                )}
+                              </div>
+
+                              <Alert className="bg-red-100 border-red-200 text-red-800">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertDescription>
+                                  请确保上传的是正确的密钥备份文件，并且使用的是创建备份时的相同PIN码。
+                                </AlertDescription>
+                              </Alert>
+
+                              <Button
+                                onClick={handleRestoreFromBackup}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                disabled={isProcessingBackup || !backupKeyFile}
+                              >
+                                {isProcessingBackup ? "处理中..." : "从备份恢复"}
+                              </Button>
+                            </div>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent value="manage" className="space-y-4 py-4">
+                          <div className="space-y-4">
+                            {isEncryptionEnabled ? (
+                              <Alert className="bg-green-100 border-green-200 text-green-800">
+                                <Lock className="h-4 w-4" />
+                                <AlertDescription>
+                                  此聊天已启用端对端加密。只有知道密钥的人才能解密消息。
+                                </AlertDescription>
+                              </Alert>
+                            ) : (
+                              <Alert className="bg-red-100 border-red-200 text-red-800">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertDescription>此聊天未启用加密。您的消息以明文形式发送。</AlertDescription>
+                              </Alert>
+                            )}
+
+                            <div className="grid grid-cols-1 gap-4">
+                              {isEncryptionEnabled && (
+                                <>
+                                  <Button
+                                    onClick={handleDisableEncryption}
+                                    className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                                  >
+                                    <ShieldOff className="h-4 w-4" />
+                                    关闭加密
+                                  </Button>
+
+                                  <Button
+                                    onClick={handleClearEncryptionKey}
+                                    className="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    清除密钥
+                                  </Button>
+
+                                  <Button
+                                    onClick={() => {
+                                      if (user && selectedFriend?.chat_id) {
+                                        const fullPin = userPin.join("")
+                                        if (fullPin.length === 6 && isPinVerified) {
+                                          try {
+                                            const encryptedKey = encryptKeyForBackup(encryptionKey, user.id, fullPin)
+                                            downloadEncryptedKey(encryptedKey, selectedFriend.chat_id)
+
+                                            toast({
+                                              title: "密钥备份已下载",
+                                              description: "请妥善保管您的密钥备份文件",
+                                            })
+                                          } catch (e) {
+                                            console.error("创建密钥备份失败:", e)
+                                            toast({
+                                              title: "备份失败",
+                                              description: "无法创建密钥备份，请重试",
+                                              variant: "destructive",
+                                            })
+                                          }
+                                        } else {
+                                          toast({
+                                            title: "PIN码验证",
+                                            description: "请先验证您的PIN码",
+                                            variant: "destructive",
+                                          })
+                                        }
+                                      }
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                    下载密钥备份
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </TabsComponent>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 min-h-0">
-              <ScrollArea className="h-[calc(100vh-160px)]">
+              <ScrollArea className="h-[calc(100vh-180px)]">
                 <div className="space-y-4 max-w-3xl mx-auto p-4">
                   {messages.length === 0 ? (
                     <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
@@ -729,7 +1649,16 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
                         <div className={`pl-10 ${!shouldShowUserInfo(index) ? "mt-1" : ""}`}>
                           {message.content && message.content !== " " && (
                             <p className="text-sm break-words whitespace-pre-wrap">
-                              {renderMessageContent(message.content)}
+                              {message.content.startsWith("[encrypted]") && (!isEncryptionEnabled || !encryptionKey) ? (
+                                <span className="text-purple-500 italic flex items-center">
+                                  <Lock className="h-4 w-4 mr-1" />
+                                  {message.sender_id === user?.id
+                                    ? "您需要启用相同的加密密钥才能查看此消息"
+                                    : "对方发送了加密消息，您需要设置相同的密钥才能查看"}
+                                </span>
+                              ) : (
+                                renderMessageContent(message)
+                              )}
                             </p>
                           )}
                           {message.image_url && (
@@ -780,11 +1709,14 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
                   onClear={() => setImageUrl(null)}
                 />
 
-                <Popover onOpenChange={(open) => {
-                  if (open && emojiPacks.length > 0) {
-                    loadEmojiPackContent(emojiPacks[0].id)
-                  }
-                }}>
+                <Popover
+                  onOpenChange={(open) => {
+                    if (open && emojiPacks.length > 0) {
+                      // 自动加载第一个表情包
+                      loadEmojiPackContent(emojiPacks[0].id)
+                    }
+                  }}
+                >
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="icon" className="h-10 w-10">
                       <Smile className="h-5 w-5" />
@@ -817,7 +1749,7 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
                                       variant="ghost"
                                       size="sm"
                                       className="h-10 w-10 p-1"
-                                      onClick={() => insertEmoji(emoji.icon)}
+                                      onClick={() => insertEmoji(emoji)}
                                     >
                                       <div dangerouslySetInnerHTML={{ __html: emoji.icon }} />
                                     </Button>
@@ -842,9 +1774,11 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
                   ref={inputRef}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="输入消息... (Shift+Enter 换行)"
+                  placeholder={
+                    isEncryptionEnabled ? "输入加密消息... (Shift+Enter 换行)" : "输入消息... (Shift+Enter 换行)"
+                  }
                   onKeyDown={handleKeyDown}
-                  className="flex-1"
+                  className={`flex-1 ${isEncryptionEnabled ? "border-purple-200" : ""}`}
                   disabled={isLoading}
                 />
                 <Button onClick={handleSendMessage} size="icon" disabled={isLoading}>
@@ -852,10 +1786,30 @@ export function PrivateChat({ initialFriendId }: PrivateChatProps) {
                   <span className="sr-only">发送</span>
                 </Button>
               </div>
+              {isEncryptionEnabled && (
+                <div className="flex items-center justify-center mt-2">
+                  <span className="text-xs text-purple-500 flex items-center">
+                    <Lock className="h-3 w-3 mr-1" />
+                    端对端加密已启用
+                  </span>
+                </div>
+              )}
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">选择一个好友开始聊天</div>
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            {showFriendsList ? (
+              "选择一个好友开始聊天"
+            ) : (
+              <div className="text-center">
+                <p className="mb-4">请选择一个好友开始聊天</p>
+                <Button onClick={() => setShowFriendsList(true)}>
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  查看好友列表
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

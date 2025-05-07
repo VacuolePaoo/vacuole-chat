@@ -41,6 +41,9 @@ export function PageLock() {
       // 获取用户设置的锁定时间（秒）
       const lockTimeInSeconds = user.lock_time ? Number.parseInt(user.lock_time) : 60
 
+      // 如果锁定时间设置为0，表示永不锁定
+      if (lockTimeInSeconds === 0) return
+
       // 设置新的计时器
       lockTimeoutRef.current = setTimeout(checkInactivity, 5000) // 每5秒检查一次
     }
@@ -51,6 +54,9 @@ export function PageLock() {
 
       // 获取用户设置的锁定时间（毫秒）
       const lockTimeInMs = (user.lock_time ? Number.parseInt(user.lock_time) : 60) * 1000
+
+      // 如果锁定时间设置为0，表示永不锁定
+      if (lockTimeInMs === 0) return
 
       // 如果不活动时间超过设定时间，锁定页面
       if (inactiveTime >= lockTimeInMs) {
@@ -81,6 +87,9 @@ export function PageLock() {
       if (document.visibilityState === "visible") {
         const inactiveTime = Date.now() - lastActivity
         const lockTimeInMs = (user.lock_time ? Number.parseInt(user.lock_time) : 60) * 1000
+
+        // 如果锁定时间设置为0，表示永不锁定
+        if (lockTimeInMs === 0) return
 
         if (inactiveTime >= lockTimeInMs) {
           lockPage()
